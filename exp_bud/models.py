@@ -16,14 +16,17 @@ class Group(models.Model):
     # By default, Django uses:
          # -'auth.User' --> Django’s built-in User model
     created_at = models.DateTimeField(auto_now_add=True)
+    members = models.ManyToManyField(settings.AUTH_USER_MODEL, through='Member', related_name='expense_groups')
+    # through='Member':
+    # Instead of Django auto-creating a hidden join table, you explicitly created your own join table model: Member.
     
     def __str__(self):
         return f"{self.name}"
     
 
-class GroupMember(models.Model):
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='members')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+class Member(models.Model):
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='members_link')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='users_link')
     join_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
