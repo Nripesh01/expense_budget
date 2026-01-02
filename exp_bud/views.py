@@ -2,13 +2,32 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Group, Member
-from .serializers import GroupSerializer, AddMemberSerializer, RegisterSerializer
+from .serializers import GroupSerializer, AddMemberSerializer, RegisterSerializer, UserProfileSerializer, UserUpdateSerializer
 from django.contrib.auth import get_user_model
+from rest_framework.views import APIView
 
 User = get_user_model()
 
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        serializer = UserProfileSerializer(user)
+        return Response(serializer.data)
+    
+
+class UserUpdateView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserUpdateSerializer
+    
+    def get_object(self):
+        return self.request.user
+
+
 class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
+    queryset = User.objects.all()
     serializer_class = RegisterSerializer
 
 
