@@ -51,16 +51,19 @@ class AddMemberView(generics.GenericAPIView):
     serializer_class = AddMemberSerializer
     
     def post(self, request, group_id):
-        try:
-            group = Group.objects.get(id=group_id, members=request.user) # Must be a member of the group to add members
-        except Group.DoesNotExist:
-            return Response({'detail': 'Group not found'}, status=400)
+        group = Group.objects.filter(id=group_id, members=request.user).first() 
+        # user can only access groups they are already a member of
+        if not group:
+            return Response({'detail': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if group.created_by_id != request.user.id:
+            return Response({'detail': 'Only the group creator can add members'}, status=status.HTTP_403_FORBIDDEN)
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        username = serializer.validated_data['username']
         
-        user_to_add = User.objects.filter(username=username).first()
+        
+        user_to_add = serializer.validated_data['username']
         
         if not user_to_add:
             return Response({'detail': 'User not found'}, status=400)
@@ -68,8 +71,32 @@ class AddMemberView(generics.GenericAPIView):
         member, created = Member.objects.get_or_create(group=group, user=user_to_add)
         
         if not created:
-            return Response({'detail': 'User is already a member'}, status=200)
+            return Response({'detail': 'User is already a member'}, status=status.HTTP_200_OK)
         
         return Response({'detail': 'Member is added'}, status=status.HTTP_201_CREATED)
        
     
+    
+class RemoveMemberView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+        
+    def delete(self, request, group_id, user_id):
+        group = Group.objects.filter(id=group_id, members=request.user).first()
+            
+        if not group:
+                return Response({'detail': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+        if group.created_by.id != request.user.id:
+                return Response({'detail': 'Only the group creator delete the members'}, status=status.HTTP_403_FORBIDDEN)
+            
+        if user_id == group.created_by.id:
+                return Response({'detail': 'Creator cannot be removed'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        delete_count, _ = Member.objects.filter(group=group, user_id=user_id).delete()
+            # _ mean I don’t care about this value.”
+            # It only deletes the membership link between that specific group and that specific user.
+            # deleted_count == 1 → the membership was removed successfully
+            
+        if delete_count == 0: # there was no such member row (user wasn’t a member)
+                return Response({'detail': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
