@@ -85,7 +85,7 @@ class ExpenseSplitOutputSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ExpenseSplit
-        fields = ['id', 'user_id', 'username', 'share']
+        fields = ['id', 'user_id', 'username','expense', 'share']
         
 
 class ExpenseSerializer(serializers.ModelSerializer):
@@ -143,9 +143,8 @@ class ExpenseSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'split_items": "split total must equal the expense amount'})
         
         return attrs
-        
-        
-        
+    
+    
     @transaction.atomic
     def create(self, validated_data): # validated_data is a dictionary(key --> value)
         group = self.context['group']
@@ -159,7 +158,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         paid_by_id = validated_data.pop('paid_by_id')
         split_items = validated_data.pop('split_items', None)
         
-        Category = None
+        category = None
         if cat_id is not None:
             category = Category.objects.get(id=cat_id, group=group)
         
@@ -173,4 +172,43 @@ class ExpenseSerializer(serializers.ModelSerializer):
             **validated_data,
         )
         
+        # If client did not send split_items, do equal split across current members
+        if not split_items:
+            member_ids = list(Member.objects.filter(group=group).values_list('user_id', flat=True))
+            count = len(member_ids)
+            if count == 0:
+                raise serializers.ValidationError('Group has no member')
         
+            amount = expense.amount
+            base = (amount/count).quantize(Decimal('0.01')) # quantize is used to round a Decimal to a fixed number of decimal places.
+            shares = [base] * count
+        
+            # fix rounding remainder
+            remainder = amount - sum(shares) # remainder ensures the total of all shares equals the original amount 
+            shares[-1] = shares[-1] + remainder
+        
+            for uid, share in zip(member_ids, shares):
+                ExpenseSplit.objects.create(expense=expense, user_id=uid, share=share)
+        
+        else:
+            for item in split_items:
+                ExpenseSplit.objects.create(expense=expense, user_id=item['user_id'], share=item['share'])
+        
+
+
+class BudgetPeriodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BudgetPeriod
+        fields = ['id', 'year', 'month', 'limit', 'created_at']
+        read_only_fields = ['id', 'created_at']
+        
+
+
+class SettlementSerializer(serializers.ModelSerializer):
+    from_username = serializers.CharField(source='from_user.username', read_only=True)
+    to_username = serializers.CharField(source='to_user.username', read_only=True)
+    
+    class Meta:
+        model = Settlement
+        fields = ['id', 'from_user', 'from_username', 'to_user', 'to_username', 'amount', 'note', 'settled_at']
+        read_only_fields = ['id', 'from_username', 'to_username']
