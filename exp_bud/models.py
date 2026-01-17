@@ -1,5 +1,5 @@
 from django.db import models
-from decimal import Decimal
+from decimal import Decimal  # exact decimal numbers, best for money.
 from django.core.validators import MinValueValidator
 from django.utils import timezone
 from django.conf import settings

@@ -19,6 +19,7 @@ class IsGroupCreator(BasePermission):
 
 class IsGroupCreatorOrExpenseCreator(BasePermission):
     def has_object_permission(self, request, view, obj):
+        # obj is Expense
         if obj.group.created_by_id == request.user.id:
             return True
         return obj.created_by_id == request.user.id
