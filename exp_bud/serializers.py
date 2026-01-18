@@ -45,7 +45,7 @@ class MemberInfoSerializer(serializers.ModelSerializer):
         read_only_fields = fields
         
 
-class CategorySerailizer(serializers.ModelSerializer):
+class CategorySerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source='group.name', read_only=True)
     class Meta:
         model = Category
@@ -56,7 +56,7 @@ class CategorySerailizer(serializers.ModelSerializer):
 class GroupSerializer(serializers.ModelSerializer):
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     members_info = MemberInfoSerializer(source='member_links', many=True, read_only=True)
-    categories = CategorySerailizer(source='categories', many=True, read_only=True)
+    categories = CategorySerializer(source='categories', many=True, read_only=True)
     
     class Meta:
         model = Group

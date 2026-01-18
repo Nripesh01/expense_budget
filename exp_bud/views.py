@@ -64,11 +64,28 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         group = self.get_object()
         if group.created_by_id != self.request.user.id:
-            raise PermissionError('Only creator can update the group')
+            raise PermissionError('Only creator can update group')
         serializer.save()
         
     def perform_destroy(self, instance):
         if instance.created_by_id != self.request.user.id:
-            raise PermissionError('Only creator can delete the group')
+            raise PermissionError('Only creator can delete group')
         instance.delete()
+
+
+
+class CategoryListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CategorySerializer
+    
+    def dispatch(self, request, *args, **kwargs): # dispatch is a DRF/Django he method that receives every HTTP request 
+        # first and then routes that request to the correct handler method (get(), post(), put(), patch(), delete(), etc.). 
+        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=request.user)
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        return Category.objects.filter(group=self.group).order_by('name')
+    
+    def perform_create(self, serializer):
+        serializer.save(group=self.group)
         
