@@ -74,13 +74,66 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 
+class AddMemberView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = AddMemberSerializer
+    
+    def post(self, request, group_id):
+        group = Group.objects.filter(id=group_id, members=self.request.user).first()
+        if not group:
+            return Response({'detail': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if group.created_by.id != self.request.user.id:
+            return Response({'detail': 'Only the creator can add members'}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = self.get_serializer(data=request.data) # create the serializer instance with data
+        serializer.is_valid(raise_exception=True) # runs all validations:(Field types (CharField, EmailField, etc.), Required fields)
+        user_to_add = serializer.validated_data['username']
+        
+        member, created = Member.objects.get_or_create(group=group, user=user_to_add)
+        
+        if not created: # handles the “already exists” case
+            return Response({'detail': 'User is already a member'}, status=status.HTTP_200_OK)
+        
+        return Response({'detail': 'Member is added'}, status=status.HTTP_201_CREATED)
+    
+
+
+class RemoveMemberView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, group_id, user_id):
+        group = Group.objects.filter(id=group_id, members=self.request.user).first()
+        if not group:
+            return Response({'detail': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if group.created_by.id != self.request.user.id:
+            return Response({'detail': 'Only the group creator can remove members'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if user_id == group.created_by.id:
+            return Response({'detail': 'Creator cannot be deleted'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        delete_count, _ = Member.objects.filter(group=group, user_id=user_id).delete() 
+        # .delete() methods returns a tuple with two things : (number_of_objects_deleted, { "model_name": number_deleted, ... })
+        # _ is a convention in Python meaning “we don’t care about (the dictionary with per-model deletion counts)
+
+        if delete_count == 0:
+            return Response({'detail': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
+        # mean member was successfully deleted, but there’s nothing else to return to the client.
+        
+        
+
+
 class CategoryListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CategorySerializer
     
-    def dispatch(self, request, *args, **kwargs): # dispatch is a DRF/Django he method that receives every HTTP request 
+    def dispatch(self, request, *args, **kwargs): # dispatch is a DRF/Django method that receives every HTTP request 
         # first and then routes that request to the correct handler method (get(), post(), put(), patch(), delete(), etc.). 
         self.group = get_object_or_404(Group, id=kwargs['group_id'], members=request.user)
+                                              # kwargs['group_id'], get the group ID from the URL
         return super().dispatch(request, *args, **kwargs)
     
     def get_queryset(self):

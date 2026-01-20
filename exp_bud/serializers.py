@@ -10,13 +10,13 @@ User = get_user_model()
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username']
+        fields = ['id', 'username', 'email']
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username']
+        fields = ['username', 'password', 'email']
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -109,7 +109,9 @@ class ExpenseSerializer(serializers.ModelSerializer):
         
         
     def validate(self, attrs):  # object-level validation, attrs is a dictionary of the validated fields for the serializer
-        group = self.context['group']
+        group = self.context['group'] # context is a dictionary used for runtime data passed from View to Serializer
+                                      # Used for authorization, validation, and controlled object creation
+                                      # uses of context : security and validation, object creation, access request user
         request = self.context['request']
         
         # paid_by user must be a member of the group
@@ -162,7 +164,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         if cat_id is not None:
             category = Category.objects.get(id=cat_id, group=group)
         
-        paid_by = User.objects.get(id=paid_by_id)
+        paid_by = User.objects.get(id=paid_by_id, group=group)
         
         expense = Expense.objects.create(
             group=group,
@@ -188,6 +190,8 @@ class ExpenseSerializer(serializers.ModelSerializer):
             shares[-1] = shares[-1] + remainder
         
             for uid, share in zip(member_ids, shares):
+                # zip() is a Python built-in function that combines multiple lists into pairs (tuples) element by element.
+                # each member ID gets its corresponding share.
                 ExpenseSplit.objects.create(expense=expense, user_id=uid, share=share)
         
         else:
