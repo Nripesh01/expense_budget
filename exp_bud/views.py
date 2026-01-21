@@ -131,14 +131,43 @@ class CategoryListCreateView(generics.ListCreateAPIView):
     serializer_class = CategorySerializer
     
     def dispatch(self, request, *args, **kwargs): # dispatch is a DRF/Django method that receives every HTTP request 
-        # first and then routes that request to the correct handler method (get(), post(), put(), patch(), delete(), etc.). 
-        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=request.user)
+        # first and then routes that request to the correct handler method (get(), post(), put(), patch(), delete(), etc.).
+        # Overriding dispatch() lets you do pre-processing before any HTTP method runs, like fetching a group and 
+        # storing it in self.group for later use in get(), post(), or serializers. 
+        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=self.request.user)
                                               # kwargs['group_id'], get the group ID from the URL
         return super().dispatch(request, *args, **kwargs)
+        # call the parent in dispatch() for routing, authentication, permissions,etc., 
+        # while still doing custom pre-processing before the request reaches the handler method
     
     def get_queryset(self):
         return Category.objects.filter(group=self.group).order_by('name')
     
     def perform_create(self, serializer):
         serializer.save(group=self.group)
+
+
+
+
+class ExpenseListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsGroupMember]
+    serializer_class = ExpenseSerializer
+    
+    def dispatch(self, request, *args, **kwargs):
+        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=self.request.user)
+        return super().dispatch(request, *args, **kwargs)
+     
+    def get_queryset(self):
+        return ( Expense.objects.filter(group=self.group).select_related('category', 'paid_by', 'created_by')
+                .prefetch_related('splits__user').order_by('name'))
+    
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context() # we call the parent class via super() to keep DRF’s
+                             #  default context (request, view, format) and then add our custom data (group) safely.
+        ctx['group'] = self.group # default group
+        return ctx
+    
+    def perform_create(self, serializer):
+        serializer.save(self.request.user)
         
+    
