@@ -163,11 +163,49 @@ class ExpenseListCreateView(generics.ListCreateAPIView):
     
     def get_serializer_context(self):
         ctx = super().get_serializer_context() # we call the parent class via super() to keep DRF’s
-                             #  default context (request, view, format) and then add our custom data (group) safely.
+        # returns a default dict of {'request', 'view', 'format'} by default; can be overridden to add custom context.
         ctx['group'] = self.group # default group
         return ctx
     
     def perform_create(self, serializer):
         serializer.save(self.request.user)
         
+
+
+class ExpenseDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsGroupCreatorOrExpenseCreator]
+    serializer_class = ExpenseSerializer
     
+    def dispatch(self, request, *args, **kwargs):
+        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=self.request.user)
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        return Expense.objects.filter(group=self.group).select_related('category', 'paid_by', 'created_by')
+    
+
+
+
+class BudgetUpsertView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, IsGroupCreator, IsGroupMember]
+    serializer_class = BudgetPeriodSerializer
+    
+    def dispatch(self, request, *args, **kwargs):
+        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=self.request.user)
+        return super().dispatch(request, *args, **kwargs)
+    
+    def post(self, request, group_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        year = serializer.validated_data['year']
+        month = serializer.validated_data['month']
+        limit = serializer.validated_data['limit']
+        
+        budget, _ = BudgetPeriod.objects.update_or_create(
+            group=self.group, year=year, month=month,
+            defaults={'limit': limit, 'created_by': request.user},
+        )
+        
+        return Response(BudgetPeriodSerializer(budget).data, status=status.HTTP_200_OK)
+        

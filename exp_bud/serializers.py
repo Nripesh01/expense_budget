@@ -68,6 +68,7 @@ class AddMemberSerializer(serializers.Serializer):
     username = serializers.CharField()
     
     def validate_username(self, value): # field level validation (validate_<fieldname>(self, value)
+                                        # use when Validation depends on one field only
         try:
             return User.objects.get(username=value)
         except User.DoesNotExist:
@@ -108,7 +109,8 @@ class ExpenseSerializer(serializers.ModelSerializer):
                 'created_at','splits']
         
         
-    def validate(self, attrs):  # object-level validation, attrs is a dictionary of the validated fields for the serializer
+    def validate(self, attrs):  # object-level validation, use when Validation depends on multiple fields together, 
+                                # attrs is a dictionary of the validated fields for the serializer
         group = self.context['group'] # context is a dictionary used for runtime data passed from View to Serializer
                                       # Used for authorization, validation, and controlled object creation
                                       # uses of context : security and validation, object creation, access request user
