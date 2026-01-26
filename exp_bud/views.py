@@ -235,3 +235,15 @@ class GroupSummaryView(APIView):
         # gte,gt,lte,lt,_exact is field lookups  gte- greater than or equal to, lt - less than.
         #__ is used in ORM queries.like: field looksup, Traversing relationships, Ordering/annotations. ( __ --> the separator tells Django “apply a lookups field” 
         
+        splits = ExpenseSplit.objects.filter(expense__in=expenses).select_related('user', 'expense')
+        # expense is foreignKey, __in mean ORM lookup meaning “the value must be in this queryset, expenses is queryset 
+        settlements = Settlement.objects.filter(group=group, settled_at__gte=start, settled_at__lt=end)
+        
+        
+        total_spent = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        # aggregate is db-level calculation across all rows in QuerySet. common funcs: Sum, Avg, Count, Min, Max
+        
+        budget = BudgetPeriod.objects.filter(group=group, year=year, month=month).first()
+        budget_limit = budget.limit if budget else None
+        remaining = (budget_limit - total_spent) if budget_limit is not None else None
+        
