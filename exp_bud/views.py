@@ -2,10 +2,11 @@ from decimal import Decimal
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
-from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
+from django.utils import timezone # timezone module contains multiple utilities, including:
+                                    # now(), datetime, timedelta, get_current_timezone()
 
 
 from django.contrib.auth import get_user_model
@@ -157,6 +158,9 @@ class ExpenseListCreateView(generics.ListCreateAPIView):
         self.group = get_object_or_404(Group, id=kwargs['group_id'], members=self.request.user)
         return super().dispatch(request, *args, **kwargs)
      
+     # select_related = fetch related single objects in the same query(OneToOne, Foreignkey)
+     # prefetch_related = fetch related lists of objects in separate query, cached in Python (ManyToMany, reverse Foreignkey)
+     
     def get_queryset(self):
         return ( Expense.objects.filter(group=self.group).select_related('category', 'paid_by', 'created_by')
                 .prefetch_related('splits__user').order_by('name'))
@@ -202,10 +206,32 @@ class BudgetUpsertView(generics.GenericAPIView):
         month = serializer.validated_data['month']
         limit = serializer.validated_data['limit']
         
-        budget, _ = BudgetPeriod.objects.update_or_create(
+        budget, _ = BudgetPeriod.objects.update_or_create( # update_or_create is UPSERT logic. In db terms, it mean,
+                                                          # Update if the record exists, otherwise Insert a new record.
             group=self.group, year=year, month=month,
             defaults={'limit': limit, 'created_by': request.user},
         )
         
         return Response(BudgetPeriodSerializer(budget).data, status=status.HTTP_200_OK)
+
+
+
+
+class GroupSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, group_id):
+        group = get_object_or_404(Group, id=group_id, members=self.request.user)
+        
+        now = timezone.now() # Current date, time, with timezone
+        year = int(request.query_params.get('year', now.year)) # year comes from the url
+        month = int(request.query_params.get('month', now.month))
+        day = int(request.query_params.get('day', now.day))
+        
+        start = timezone.datetime(year, month, day, tzinfo=timezone.get_current_timezone()) # tzinf assigns timezone to a datetime
+        end = (start + timezone.timedelta(days=32).replace(day=1)) # timedelta a time difference.To say how much time to move
+        
+        expenses = Expense.objects.filter(group=group, spent_at__gte=start, spent_at__lt=end).select_related('paid_by')
+        # gte,gt,lte,lt,_exact is field lookups  gte- greater than or equal to, lt - less than.
+        #__ is used in ORM queries.like: field looksup, Traversing relationships, Ordering/annotations. ( __ --> the separator tells Django “apply a lookups field” 
         

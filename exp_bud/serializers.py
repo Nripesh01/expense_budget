@@ -38,7 +38,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 class MemberInfoSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     user_id = serializers.IntegerField(source='user.id', read_only=True)
-    
+    # source mean go through a related object to get a field. (. → traverse the relation, in serializer 
+                                                     # (.) only working with Python objects, not the database.)
     class Meta:
         model = Member
         fields = ['id', 'user_id', 'username', 'role', 'joined_at']
