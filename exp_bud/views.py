@@ -242,8 +242,25 @@ class GroupSummaryView(APIView):
         
         total_spent = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         # aggregate is db-level calculation across all rows in QuerySet. common funcs: Sum, Avg, Count, Min, Max
-        
+        # if total has value use that. if not provided safe fallback to Deciaml('0.00')
+        # ['total'] is dict key access and access the value from dictionary returned by aggregate
         budget = BudgetPeriod.objects.filter(group=group, year=year, month=month).first()
         budget_limit = budget.limit if budget else None
-        remaining = (budget_limit - total_spent) if budget_limit is not None else None
+        remaining = (budget_limit - total_spent) if budget_limit is not None else None # this is null-safe conditional assignment
         
+        # balances: + means user should receive, - means user owes
+        member_ids = list(Member.objects.filter(group=group).values_list('user_id', flat=True))
+        balances = {uid: Decimal('0.00') for uid in member_ids} # this is a dictionary comprehension
+        # uid : Decimal('0.00), use uid as the key in dict and Decimal('0.00) as the value. eg: { 1: Decimal('2000.00'),}
+        
+        
+        for e in expenses:
+            balances[e.paid_by_id] += e.amount
+            
+        for s in splits:
+            balances[s.user_id] -= s.share
+        
+        for st in settlements:
+            balances[st.from_user_id] += st.amount
+            balances[st.to_user_id] -= st.amount
+            
