@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
-from rest_framework import generics, status
+from rest_framework import generics, status,serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
@@ -215,6 +215,30 @@ class BudgetUpsertView(generics.GenericAPIView):
         return Response(BudgetPeriodSerializer(budget).data, status=status.HTTP_200_OK)
 
 
+
+
+class SettlementListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsGroupMember]
+    serializer_class = SettlementSerializer
+    
+    def dispatch(self, request, *args, **kwargs):
+        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=self.request.user)
+        return super().dispatch(request,*args, **kwargs)
+    
+    def get_queryset(self):
+        return Settlement.objects.filter(group=self.group).select_related('from_user', 'to_user').order_by('-settled_at')
+    
+    def perform_create(self, serializer):
+        from_user = serializer.validated_data['from_user']
+        to_user = serializer.validated_data['to_user']
+        
+        if not Member.objects.filter(group=self.group, user=from_user).exists():
+            raise serializers.ValidationError({'from_user': 'Not a group member'})
+        
+        if not Member.objects.filter(group=self.group, user=to_user).exists():
+            raise serializers.ValidationError({'to_user': 'Not a group member'})
+        
+        serializer.save(group=self.group)
 
 
 class GroupSummaryView(APIView):
