@@ -263,4 +263,27 @@ class GroupSummaryView(APIView):
         for st in settlements:
             balances[st.from_user_id] += st.amount
             balances[st.to_user_id] -= st.amount
-            
+        
+        
+        users = User.objects.filter(id__in=member_ids).only('id', 'username')
+        id_to_name = {u.id: u.username for u in users}
+        balance_list = [                          # .get(key, default),if found return value. If not return default-> str(uid) it is a null-safe / error-safe      
+            {'user_id': uid, 'username': id_to_name.get(uid, str(uid)), 'net': str(balances[uid])} # balances[uid] → fetches that user’s net amount from the dictionary
+            for uid in member_ids
+        ]
+        
+        # [] is the dictionary lookup operator in Python used to access or update the value of a specific key in a dictionary
+        
+        
+        
+        return Response({
+            'group_id': group.id,
+            'group_name': group.name,
+            'currency': group.currency,
+            'period': {'year': year, 'month': month},
+            'total_spent': str(total_spent),
+            'budget_limit': str(budget_limit) if budget_limit is not None else None,
+            'remaining': str(remaining) if remaining is not None else None,
+            'balances': balance_list,
+        })
+        
