@@ -3,6 +3,9 @@ from .views import ( UserProfileView, UserUpdateView, RegisterView, GroupListCre
                     AddMemberView, RemoveMemberView, CategoryListCreateView, ExpenseListCreateView,
                     ExpenseDetailView, BudgetUpsertView, SettlementListCreateView, GroupSummaryView,
 )
+
+
+
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     # as_view() converts a class-based view into a callable function that Django can execute when a request comes in.

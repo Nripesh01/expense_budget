@@ -17,6 +17,18 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['username', 'password', 'email']
+        
+        
+        def update(self, instance, validated_data):
+            password = validated_data.pop('password', None)
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            if password:
+                instance.set_password(password)  # Properly hashes the password
+            instance.save()
+            return instance
+        
+        
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -50,19 +62,19 @@ class CategorySerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source='group.name', read_only=True)
     class Meta:
         model = Category
-        fields = ['id','group','group_name' ,'name', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'group_name' ,'name', 'created_at']
+        read_only_fields = ['id', 'group', 'group_name', 'created_at']
 
 
 class GroupSerializer(serializers.ModelSerializer):
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     members_info = MemberInfoSerializer(source='member_links', many=True, read_only=True)
-    categories = CategorySerializer(source='categories', many=True, read_only=True)
+    categories = CategorySerializer(many=True, read_only=True)
     
     class Meta:
         model = Group
-        fields = ['id', 'name', 'created_by', 'currency', 'created_by_username', 'members_info', 'created_at']
-        read_only_fields = ['id', 'name', 'created_by', 'created_at', 'created_by_username', 'members_info']
+        fields = ['id', 'name','currency', 'categories', 'created_by', 'created_by_username', 'members_info', 'created_at']
+        read_only_fields = ['id', 'created_by', 'created_at']
         
 
 class AddMemberSerializer(serializers.Serializer):
@@ -167,7 +179,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         if cat_id is not None:
             category = Category.objects.get(id=cat_id, group=group)
         
-        paid_by = User.objects.get(id=paid_by_id, group=group)
+        paid_by = User.objects.get(id=paid_by_id)
         
         expense = Expense.objects.create(
             group=group,

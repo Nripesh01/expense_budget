@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django.utils import timezone # timezone module contains multiple utilities, including:
                                     # now(), datetime, timedelta, get_current_timezone()
+from rest_framework.exceptions import PermissionDenied
 
 
 from django.contrib.auth import get_user_model
@@ -128,25 +129,25 @@ class RemoveMemberView(generics.GenericAPIView):
 
 
 class CategoryListCreateView(generics.ListCreateAPIView):
+    
     permission_classes = [IsAuthenticated]
-    serializer_class = CategorySerializer
     
-    def dispatch(self, request, *args, **kwargs): # dispatch is a DRF/Django method that receives every HTTP request 
-        # first and then routes that request to the correct handler method (get(), post(), put(), patch(), delete(), etc.).
-        # Overriding dispatch() lets you do pre-processing before any HTTP method runs, like fetching a group and 
-        # storing it in self.group for later use in get(), post(), or serializers. 
-        self.group = get_object_or_404(Group, id=kwargs['group_id'], members=self.request.user)
-                                              # kwargs['group_id'], get the group ID from the URL
-        return super().dispatch(request, *args, **kwargs)
-        # call the parent in dispatch() for routing, authentication, permissions,etc., 
-        # while still doing custom pre-processing before the request reaches the handler method
-    
-    def get_queryset(self):
-        return Category.objects.filter(group=self.group).order_by('name')
-    
-    def perform_create(self, serializer):
-        serializer.save(group=self.group)
+    def get(self, request, group_id):
+        # make sure the group exists and the user is a member
+        group = get_object_or_404(Group, id=group_id, members=request.user)
+        categories = Category.objects.filter(group=group)
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data)
 
+    def post(self, request, group_id):
+        group = get_object_or_404(Group, id=group_id, members=request.user)
+
+        # include the group in the serializer
+        serializer = CategorySerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(group=group)  # automatically assign the group
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -172,7 +173,7 @@ class ExpenseListCreateView(generics.ListCreateAPIView):
         return ctx
     
     def perform_create(self, serializer):
-        serializer.save(self.request.user)
+        serializer.save(group=self.group, created_by=self.request.user)
         
 
 
